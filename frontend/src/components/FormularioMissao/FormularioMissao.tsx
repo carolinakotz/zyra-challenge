@@ -22,6 +22,11 @@ interface ValoresFormulario {
 // mesmo valor de MissaoBO.PONTOS_PADRAO no backend
 const PONTOS_PADRAO = 20
 
+// mesmos limites e mesma mensagem de MissaoBO.PONTOS_MINIMO / PONTOS_MAXIMO no backend
+const PONTOS_MINIMO = 1
+const PONTOS_MAXIMO = 500
+const MENSAGEM_PONTOS = `Os pontos da conquista devem estar entre ${PONTOS_MINIMO} e ${PONTOS_MAXIMO}.`
+
 // remove espaços nas pontas antes de validar e de enviar (o backend grava sem eles)
 const removerEspacos = (valor: string) => valor.trim()
 
@@ -117,8 +122,8 @@ function FormularioMissao(props: FormularioMissaoProps) {
               // converte para number; campo vazio vira NaN e cai no required/validate
               valueAsNumber: true,
               required: 'Informe os pontos de recompensa.',
-              min: { value: 1, message: 'Use pelo menos 1 ponto.' },
-              max: { value: 1000, message: 'Use no máximo 1000 pontos.' },
+              min: { value: PONTOS_MINIMO, message: MENSAGEM_PONTOS },
+              max: { value: PONTOS_MAXIMO, message: MENSAGEM_PONTOS },
               validate: (valor) => Number.isInteger(valor) || 'Use um número inteiro.',
             })}
             erro={errors.pontos?.message}

@@ -1,6 +1,7 @@
 package br.com.zyra.dao;
 
 import br.com.zyra.exception.AcessoDadosException;
+import br.com.zyra.model.Conquista;
 import br.com.zyra.model.Missao;
 import org.springframework.stereotype.Repository;
 
@@ -14,7 +15,8 @@ import java.util.List;
 import java.util.Optional;
 
 // único lugar com SQL da tabela ZYRA2_MISSAO
-// só lida com a missão: a conquista fica a cargo do ConquistaDAO (o BO junta as duas)
+// grava e altera só a missão: a conquista fica a cargo do ConquistaDAO
+// exceção: a listagem lê as duas tabelas com JOIN, para não fazer uma consulta por missão
 @Repository
 public class MissaoDAO {
 
@@ -80,16 +82,34 @@ public class MissaoDAO {
         }
     }
 
-    public List<Missao> listarTodos() {
-        String sql = "SELECT ID_MISSAO, NOME_MISSAO, REQUISITO FROM ZYRA2_MISSAO ORDER BY ID_MISSAO";
+    // lista uma página de missões já com a conquista de cada uma, numa consulta só
+    // 1) a subconsulta "m" pagina as missões ANTES do JOIN: o limite vale para missões, não para linhas
+    // 2) o LEFT JOIN mantém na lista a missão que ainda não tem conquista (conquista = null)
+    // 3) o WHERE deixa só a primeira conquista (menor id), a mesma regra do MissaoBO.buscarConquista();
+    //    o filtro fica no WHERE (e não no ON), onde subconsulta correlacionada funciona em qualquer versão do Oracle
+    public List<Missao> listarTodos(int pagina, int tamanho) {
+        String sql = "SELECT m.ID_MISSAO, m.NOME_MISSAO, m.REQUISITO, c.ID_CONQUISTA, c.PONTOS_RECOMPENSA "
+                + "FROM (SELECT ID_MISSAO, NOME_MISSAO, REQUISITO FROM ZYRA2_MISSAO "
+                + "      ORDER BY ID_MISSAO OFFSET ? ROWS FETCH NEXT ? ROWS ONLY) m "
+                + "LEFT JOIN ZYRA2_CONQUISTA c ON c.ID_MISSAO = m.ID_MISSAO "
+                + "WHERE c.ID_CONQUISTA IS NULL "
+                + "   OR c.ID_CONQUISTA = (SELECT MIN(c2.ID_CONQUISTA) FROM ZYRA2_CONQUISTA c2 "
+                + "                        WHERE c2.ID_MISSAO = m.ID_MISSAO) "
+                + "ORDER BY m.ID_MISSAO";
         try (Connection conexao = dataSource.getConnection();
-             PreparedStatement comando = conexao.prepareStatement(sql);
-             ResultSet resultado = comando.executeQuery()) {
-            List<Missao> missoes = new ArrayList<>();
-            while (resultado.next()) {
-                missoes.add(converter(resultado));
+             PreparedStatement comando = conexao.prepareStatement(sql)) {
+            // long para a conta não estourar com uma página muito alta
+            comando.setLong(1, (long) pagina * tamanho);
+            comando.setInt(2, tamanho);
+            try (ResultSet resultado = comando.executeQuery()) {
+                List<Missao> missoes = new ArrayList<>();
+                while (resultado.next()) {
+                    Missao missao = converter(resultado);
+                    missao.setConquista(converterConquista(resultado, missao.getId()));
+                    missoes.add(missao);
+                }
+                return missoes;
             }
-            return missoes;
         } catch (SQLException e) {
             throw new AcessoDadosException("Erro ao listar as missões.", e);
         }
@@ -120,5 +140,15 @@ public class MissaoDAO {
         missao.setNomeMissao(resultado.getString("NOME_MISSAO"));
         missao.setRequisito(resultado.getString("REQUISITO"));
         return missao;
+    }
+
+    // monta a conquista que veio no JOIN da listagem; null quando a missão não tem conquista
+    // (no LEFT JOIN, as colunas da conquista chegam nulas)
+    private Conquista converterConquista(ResultSet resultado, Long idMissao) throws SQLException {
+        long idConquista = resultado.getLong("ID_CONQUISTA");
+        if (resultado.wasNull()) {
+            return null;
+        }
+        return new Conquista(idConquista, resultado.getInt("PONTOS_RECOMPENSA"), idMissao);
     }
 }

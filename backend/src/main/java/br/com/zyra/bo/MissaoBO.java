@@ -21,6 +21,17 @@ public class MissaoBO {
     // pontos da conquista quando quem chama não informa outro valor
     public static final int PONTOS_PADRAO = 20;
 
+    // faixa de pontos aceita por conquista; o máximo evita inflar pontos (que depois viram saldo)
+    // o FormularioMissao do frontend e a constraint ZYRA2_CK_CONQUISTA_PONTOS usam os mesmos valores
+    public static final int PONTOS_MINIMO = 1;
+    public static final int PONTOS_MAXIMO = 500;
+
+    // paginação do GET /missoes: sem parâmetros, devolve a primeira página com 50 missões
+    // tamanhos acima do máximo são reduzidos, para nenhuma chamada puxar a tabela inteira
+    public static final int PAGINA_PADRAO = 0;
+    public static final int TAMANHO_PADRAO = 50;
+    public static final int TAMANHO_MAXIMO = 100;
+
     private static final int TAMANHO_MINIMO_NOME = 3;
 
     private final MissaoDAO missaoDAO;
@@ -39,8 +50,9 @@ public class MissaoBO {
     // cadastra a missão e já cria a conquista vinculada a ela
     public MissaoSaidaDTO cadastrar(MissaoEntradaDTO dto, Integer pontosRecompensa) {
         validar(dto);
-        if (pontosRecompensa == null || pontosRecompensa <= 0) {
-            throw new RegraNegocioException("Os pontos da conquista devem ser maiores que zero.");
+        if (pontosRecompensa == null || pontosRecompensa < PONTOS_MINIMO || pontosRecompensa > PONTOS_MAXIMO) {
+            throw new RegraNegocioException(
+                    "Os pontos da conquista devem estar entre " + PONTOS_MINIMO + " e " + PONTOS_MAXIMO + ".");
         }
 
         Missao missao = converterParaModel(dto);
@@ -92,12 +104,24 @@ public class MissaoBO {
         return converterParaDTO(missao);
     }
 
-    public List<MissaoSaidaDTO> listarTodos() {
-        List<Missao> missoes = missaoDAO.listarTodos();
-        for (Missao missao : missoes) {
-            missao.setConquista(buscarConquista(missao.getId()));
+    // lista uma página de missões, cada uma já com a sua conquista (uma consulta só no DAO)
+    // pagina e tamanho podem vir nulos: aí valem PAGINA_PADRAO e TAMANHO_PADRAO
+    public List<MissaoSaidaDTO> listarTodos(Integer pagina, Integer tamanho) {
+        int paginaFinal = pagina == null ? PAGINA_PADRAO : pagina;
+        int tamanhoFinal = tamanho == null ? TAMANHO_PADRAO : tamanho;
+
+        if (paginaFinal < 0) {
+            throw new RegraNegocioException("A página deve ser maior ou igual a zero.");
         }
-        return missoes.stream().map(this::converterParaDTO).toList();
+        if (tamanhoFinal < 1) {
+            throw new RegraNegocioException("O tamanho da página deve ser maior que zero.");
+        }
+        // pedir mais que o máximo não é erro: só recebe o máximo
+        tamanhoFinal = Math.min(tamanhoFinal, TAMANHO_MAXIMO);
+
+        return missaoDAO.listarTodos(paginaFinal, tamanhoFinal).stream()
+                .map(this::converterParaDTO)
+                .toList();
     }
 
     // as regras ficam aqui mesmo com as anotações do DTO, porque o BO

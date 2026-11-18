@@ -32,10 +32,13 @@ public class MissaoResource {
         this.missaoBO = missaoBO;
     }
 
-    // GET /missoes -> 200 com a lista (vazia se não houver missões)
+    // GET /missoes?pagina=0&tamanho=50 -> 200 com a lista (vazia se a página não tiver missões)
+    // os dois parâmetros são opcionais; padrões e tamanho máximo ficam no MissaoBO
+    // a resposta continua sendo uma lista simples (o frontend depende disso)
     @GetMapping
-    public ResponseEntity<List<MissaoSaidaDTO>> listarTodos() {
-        return ResponseEntity.ok(missaoBO.listarTodos());
+    public ResponseEntity<List<MissaoSaidaDTO>> listarTodos(@RequestParam(required = false) Integer pagina,
+                                                            @RequestParam(required = false) Integer tamanho) {
+        return ResponseEntity.ok(missaoBO.listarTodos(pagina, tamanho));
     }
 
     // GET /missoes/{id} -> 200 com a missão, ou 404 se não existir
