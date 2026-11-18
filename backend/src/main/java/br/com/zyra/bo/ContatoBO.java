@@ -34,8 +34,13 @@ public class ContatoBO {
         this.contatoDAO = contatoDAO;
     }
 
-    // valida, tira os espaços das pontas e grava a mensagem
+    // mesma mensagem do erro genérico do formulário: quem fez o robô não descobre
+    // que foi barrado pelo campo isca
+    private static final String MENSAGEM_ENVIO_RECUSADO = "Não foi possível enviar sua mensagem. Tente novamente.";
+
+    // confere o campo isca, valida, tira os espaços das pontas e grava a mensagem
     public ContatoSaidaDTO cadastrar(ContatoEntradaDTO dto) {
+        recusarSeForRobo(dto);
         validar(dto);
 
         Contato contato = converterParaModel(dto);
@@ -44,6 +49,14 @@ public class ContatoBO {
         contatoDAO.inserir(contato);
 
         return converterParaDTO(contato);
+    }
+
+    // o campo "site" fica escondido de pessoas no formulário; se chegou preenchido,
+    // quem enviou foi um robô que preenche todos os campos que encontra. Nada é gravado.
+    private void recusarSeForRobo(ContatoEntradaDTO dto) {
+        if (dto != null && dto.site() != null && !ContatoEntradaDTO.removerEspacos(dto.site()).isEmpty()) {
+            throw new RegraNegocioException(MENSAGEM_ENVIO_RECUSADO);
+        }
     }
 
     // as regras ficam aqui mesmo com as anotações do DTO, porque o BO

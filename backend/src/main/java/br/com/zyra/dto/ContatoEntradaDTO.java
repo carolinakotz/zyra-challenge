@@ -47,7 +47,12 @@ public record ContatoEntradaDTO(
                 groups = ContatoEntradaDTO.Tamanho.class)
         @Size(max = ContatoEntradaDTO.MENSAGEM_MAXIMO, message = "Use no máximo 500 caracteres.",
                 groups = ContatoEntradaDTO.Tamanho.class)
-        String mensagem
+        String mensagem,
+
+        // campo isca: fica escondido no formulário, então uma pessoa real nunca preenche.
+        // Sem validação aqui: quem confere é o ContatoBO, que recusa o envio se vier preenchido.
+        // Não é gravado no banco nem volta na resposta.
+        String site
 ) {
 
     // grupos de validação (só servem para definir a ordem do @GroupSequence)
@@ -83,6 +88,7 @@ public record ContatoEntradaDTO(
 
     // roda quando o JSON vira DTO, antes da validação: tira os espaços das pontas
     // como o removerEspacos do formulário, para " Ana" valer igual nos dois lados
+    // (o site fica como chegou: o BO precisa ver exatamente o que o robô mandou)
     public ContatoEntradaDTO {
         nome = removerEspacos(nome);
         sobrenome = removerEspacos(sobrenome);

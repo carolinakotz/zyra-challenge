@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import type { DadosContato, StatusEnvio } from '../../types/contato'
+import { ErroApi } from '../../services/api'
+import { cadastrarContato } from '../../services/contatoService'
+import type { ContatoEntradaDTO, RetornoEnvio } from '../../types/contato'
 import CampoTexto from '../CampoTexto'
 import CampoTextarea from '../CampoTextarea'
 import MensagemRetorno from '../MensagemRetorno'
@@ -14,13 +16,21 @@ const REGEX_TELEFONE = /^\(\d{2}\)\s?\d{4,5}-\d{4}$/
 // tempo que a mensagem de sucesso ou erro fica na tela
 const TEMPO_MENSAGEM_MS = 5000
 
+const MENSAGEM_SUCESSO = 'Mensagem enviada com sucesso! Em breve entraremos em contato.'
+// usada só quando o erro não veio da API (a API manda a própria mensagem)
+const MENSAGEM_ERRO_GENERICA = 'Não foi possível enviar sua mensagem. Tente novamente.'
+
 // remove espaços nas pontas antes de validar e de enviar
 const removerEspacos = (valor: string) => valor.trim()
 
-// a API não tem endpoint de contato, então o envio é simulado (igual ao projeto original):
-// só espera um pouco para o botão mostrar "Enviando..."; os dados não saem do navegador
-function simularEnvio(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 800))
+// valores dos campos na tela (todos texto; o telefone vazio vira null só no envio)
+interface ValoresFormulario {
+  nome: string
+  sobrenome: string
+  email: string
+  telefone: string
+  mensagem: string
+  site: string
 }
 
 function FormularioContato() {
@@ -29,40 +39,47 @@ function FormularioContato() {
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<DadosContato>()
+  } = useForm<ValoresFormulario>()
 
-  const [status, setStatus] = useState<StatusEnvio>(null)
+  const [retorno, setRetorno] = useState<RetornoEnvio | null>(null)
 
   // esconde a mensagem depois de alguns segundos
   useEffect(() => {
-    if (status === null) return
+    if (retorno === null) return
 
-    const temporizador = setTimeout(() => setStatus(null), TEMPO_MENSAGEM_MS)
+    const temporizador = setTimeout(() => setRetorno(null), TEMPO_MENSAGEM_MS)
     return () => clearTimeout(temporizador)
-  }, [status])
+  }, [retorno])
 
-  async function aoEnviar() {
+  // só é chamado se todos os campos passarem na validação;
+  // enquanto a Promise não termina, isSubmitting fica true e o botão mostra "Enviando..."
+  async function aoEnviar(valores: ValoresFormulario) {
+    // limpa o aviso do envio anterior antes de tentar de novo
+    setRetorno(null)
+
+    const dados: ContatoEntradaDTO = {
+      nome: valores.nome,
+      sobrenome: valores.sobrenome,
+      email: valores.email,
+      // telefone é opcional: campo vazio vai como null
+      telefone: valores.telefone === '' ? null : valores.telefone,
+      mensagem: valores.mensagem,
+      site: valores.site,
+    }
+
     try {
-      await simularEnvio()
-      setStatus('sucesso')
+      await cadastrarContato(dados)
+      setRetorno({ tipo: 'sucesso', texto: MENSAGEM_SUCESSO })
       reset()
-    } catch {
-      setStatus('erro')
+    } catch (e) {
+      // em caso de erro os campos continuam preenchidos, para a pessoa não digitar tudo de novo
+      setRetorno({ tipo: 'erro', texto: e instanceof ErroApi ? e.message : MENSAGEM_ERRO_GENERICA })
     }
   }
 
   return (
     <>
-      {status && (
-        <MensagemRetorno
-          tipo={status}
-          texto={
-            status === 'sucesso'
-              ? 'Mensagem enviada com sucesso! Em breve entraremos em contato.'
-              : 'Não foi possível enviar sua mensagem. Tente novamente.'
-          }
-        />
-      )}
+      {retorno && <MensagemRetorno tipo={retorno.tipo} texto={retorno.texto} />}
 
       <form
         noValidate
@@ -117,13 +134,13 @@ function FormularioContato() {
           />
           <CampoTexto
             id="contato-telefone"
-            label="Telefone"
+            label="Telefone (opcional)"
             type="tel"
             placeholder="(11) 91234-5678"
             autoComplete="tel"
             register={register('telefone', {
               setValueAs: removerEspacos,
-              required: 'Informe seu telefone.',
+              // opcional: o formato só é conferido quando o campo está preenchido
               pattern: { value: REGEX_TELEFONE, message: 'Use o formato (11) 91234-5678.' },
             })}
             erro={errors.telefone?.message}
@@ -144,6 +161,15 @@ function FormularioContato() {
           erro={errors.mensagem?.message}
         />
 
+        {/* campo isca (honeypot): pessoas não veem nem alcançam com Tab, mas robôs que
+            preenchem todos os campos do HTML caem nele, e o backend recusa o envio.
+            Fica fora da tela em vez de display: none, que alguns robôs detectam.
+            aria-hidden esconde de leitores de tela; tabIndex -1 tira da ordem do Tab */}
+        <div aria-hidden="true" className="absolute top-auto left-[-9999px] h-px w-px overflow-hidden">
+          <label htmlFor="contato-site">Site</label>
+          <input id="contato-site" type="text" tabIndex={-1} autoComplete="off" {...register('site')} />
+        </div>
+
         <hr className="h-[1.5px] border-none bg-separator-light" aria-hidden="true" />
 
         <button
@@ -154,6 +180,12 @@ function FormularioContato() {
           {isSubmitting ? 'Enviando...' : 'Enviar'}
         </button>
       </form>
+
+      {/* aviso de privacidade (LGPD): para que os dados do formulário são usados */}
+      <p className="mt-[1.6rem] text-center font-texto text-[1.3rem] text-text-dark">
+        Usamos seus dados apenas para responder a esta mensagem. Não enviamos e-mails automáticos nem
+        compartilhamos suas informações com terceiros.
+      </p>
     </>
   )
 }
