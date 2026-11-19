@@ -45,6 +45,12 @@ public class TratadorGlobalExceptions {
         return responder(HttpStatus.NOT_FOUND, e.getMessage());
     }
 
+    // login com e-mail ou senha errados: 401, sempre com a mesma mensagem
+    @ExceptionHandler(CredenciaisInvalidasException.class)
+    public ResponseEntity<ErroSaidaDTO> tratarCredenciaisInvalidas(CredenciaisInvalidasException e) {
+        return responder(HttpStatus.UNAUTHORIZED, e.getMessage());
+    }
+
     // falha no banco: 500 com mensagem genérica
     // o detalhe técnico (SQL, erro do Oracle) vai só para o log do servidor, nunca para o usuário
     @ExceptionHandler(AcessoDadosException.class)

@@ -25,7 +25,8 @@ import java.util.stream.Collectors;
 public class CorsFilter extends OncePerRequestFilter {
 
     private static final String METODOS_PERMITIDOS = "GET, POST, PUT, DELETE, OPTIONS";
-    private static final String HEADERS_PERMITIDOS = "Content-Type";
+    // Authorization: o frontend manda o token JWT do admin nesse header
+    private static final String HEADERS_PERMITIDOS = "Content-Type, Authorization";
 
     // por quanto tempo (em segundos) o navegador pode guardar a resposta do preflight
     private static final String TEMPO_CACHE_PREFLIGHT = "3600";
