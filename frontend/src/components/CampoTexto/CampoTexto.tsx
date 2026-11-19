@@ -3,7 +3,7 @@ import type { UseFormRegisterReturn } from 'react-hook-form'
 interface CampoTextoProps {
   id: string
   label: string
-  type?: 'text' | 'email' | 'tel' | 'number'
+  type?: 'text' | 'email' | 'tel' | 'number' | 'password'
   placeholder?: string
   autoComplete?: string
   // retorno do register('campo', regras) do react-hook-form

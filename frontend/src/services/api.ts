@@ -1,4 +1,5 @@
 import type { RespostaErroApi } from '../types/api'
+import { lerSessao, limparSessao } from '../utils/sessaoArmazenada'
 
 // endereço base da API, vem do .env (VITE_API_URL)
 export const API_URL = import.meta.env.VITE_API_URL
@@ -44,15 +45,19 @@ async function lerMensagemErro(resposta: Response): Promise<string> {
 async function requisitar<T>(caminho: string, opcoes: RequestInit = {}): Promise<T> {
   let resposta: Response
 
+  const headers = new Headers(opcoes.headers)
+  // Content-Type só quando há corpo (POST/PUT); num GET ele forçaria um preflight de CORS
+  if (opcoes.body !== undefined && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
+  }
+  // com sessão de admin, toda requisição leva o token; o backend decide o que cada perfil pode fazer
+  const token = lerSessao()?.token
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`)
+  }
+
   try {
-    resposta = await fetch(`${API_URL}${caminho}`, {
-      ...opcoes,
-      // Content-Type só quando há corpo (POST/PUT); num GET ele forçaria um preflight de CORS
-      headers:
-        opcoes.body !== undefined
-          ? { 'Content-Type': 'application/json', ...opcoes.headers }
-          : opcoes.headers,
-    })
+    resposta = await fetch(`${API_URL}${caminho}`, { ...opcoes, headers })
   } catch (erro) {
     // cancelamento pedido por quem chamou (AbortController): repassa o erro original,
     // para não virar a mensagem de "sem conexão"
@@ -64,6 +69,11 @@ async function requisitar<T>(caminho: string, opcoes: RequestInit = {}): Promise
 
   // o fetch NÃO lança erro em 404 ou 500: quem diz se deu certo é resposta.ok (status 200–299)
   if (!resposta.ok) {
+    // 401 com token enviado: o token venceu ou foi recusado. Limpa a sessão, e as telas de admin
+    // percebem sozinhas (o RotaAdmin manda para o /login e os botões de admin somem)
+    if (resposta.status === 401 && token) {
+      limparSessao()
+    }
     throw new ErroApi(await lerMensagemErro(resposta), resposta.status)
   }
 

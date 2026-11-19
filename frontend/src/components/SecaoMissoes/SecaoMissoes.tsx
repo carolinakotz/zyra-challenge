@@ -1,14 +1,16 @@
 import { useFetch } from '../../hooks/useFetch'
+import { useSessao } from '../../hooks/useSessao'
 import { listarMissoes } from '../../services/missaoService'
 import BotaoPrimario from '../BotaoPrimario'
 import CartaoMissao from '../CartaoMissao'
 import EstadoRequisicao from '../EstadoRequisicao'
 import TituloSecao from '../TituloSecao'
 
-// seção com as missões cadastradas na API e o botão para cadastrar uma nova
+// seção com as missões cadastradas na API e, para o admin, o botão para cadastrar uma nova
 function SecaoMissoes() {
   // listarMissoes é definida fora do componente, então já é estável
   const { dados: missoes, carregando, erro, recarregar } = useFetch(listarMissoes)
+  const { ehAdmin } = useSessao()
 
   // vazio só depois de carregar com sucesso; dados null na primeira carga não conta
   const vazio = !carregando && erro === null && missoes !== null && missoes.length === 0
@@ -25,9 +27,12 @@ function SecaoMissoes() {
         do transporte público.
       </p>
 
-      <div className="mb-[2.4rem] text-center tablet:mb-[3.2rem]">
-        <BotaoPrimario to="/missoes/nova">Cadastrar nova missão</BotaoPrimario>
-      </div>
+      {/* só o admin vê o botão; esconder é experiência do usuário, quem bloqueia é o backend */}
+      {ehAdmin && (
+        <div className="mb-[2.4rem] text-center tablet:mb-[3.2rem]">
+          <BotaoPrimario to="/missoes/nova">Cadastrar nova missão</BotaoPrimario>
+        </div>
+      )}
 
       <EstadoRequisicao
         carregando={carregando}
