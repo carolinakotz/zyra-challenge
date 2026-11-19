@@ -11,6 +11,16 @@ export interface AvisoNavegacao {
   tipo: 'sucesso' | 'erro'
 }
 
+// o que o RotaAdmin manda para o /login: a página que a pessoa tentou abrir,
+// para voltar para ela depois do login
+export interface DestinoLogin {
+  de: string
+}
+
+export function ehDestinoLogin(estado: unknown): estado is DestinoLogin {
+  return typeof estado === 'object' && estado !== null && 'de' in estado && typeof estado.de === 'string'
+}
+
 // location.state é unknown: confere o formato antes de usar
 export function ehAvisoNavegacao(estado: unknown): estado is AvisoNavegacao {
   return (

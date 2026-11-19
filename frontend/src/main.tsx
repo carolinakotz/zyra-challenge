@@ -13,6 +13,9 @@ import PaginaCadastroMissao from './pages/PaginaCadastroMissao'
 import PaginaDetalheMissao from './pages/PaginaDetalheMissao'
 import PaginaEdicaoMissao from './pages/PaginaEdicaoMissao'
 import PaginaErro from './pages/PaginaErro'
+import PaginaLogin from './pages/PaginaLogin'
+import PaginaContatosAdmin from './pages/PaginaContatosAdmin'
+import RotaAdmin from './components/RotaAdmin'
 
 // App é o layout (cabeçalho + rodapé); as rotas filhas aparecem no <Outlet /> dele
 const router = createBrowserRouter([
@@ -29,10 +32,19 @@ const router = createBrowserRouter([
       { path: 'integrantes', element: <PaginaIntegrantes /> },
       { path: 'faq', element: <PaginaFaq /> },
       { path: 'contato', element: <PaginaContato /> },
-      // "nova" é texto fixo, então tem prioridade sobre ":id"
-      { path: 'missoes/nova', element: <PaginaCadastroMissao /> },
+      // sem link no menu: a equipe acessa digitando /login
+      { path: 'login', element: <PaginaLogin /> },
       { path: 'missoes/:id', element: <PaginaDetalheMissao /> },
-      { path: 'missoes/:id/editar', element: <PaginaEdicaoMissao /> },
+      // só para admin (cadastro e edição de missão, mensagens de contato): sem sessão, o RotaAdmin manda para o /login
+      // ("nova" é texto fixo, então continua com prioridade sobre ":id")
+      {
+        element: <RotaAdmin />,
+        children: [
+          { path: 'missoes/nova', element: <PaginaCadastroMissao /> },
+          { path: 'missoes/:id/editar', element: <PaginaEdicaoMissao /> },
+          { path: 'admin/contatos', element: <PaginaContatosAdmin /> },
+        ],
+      },
     ],
   },
 ])

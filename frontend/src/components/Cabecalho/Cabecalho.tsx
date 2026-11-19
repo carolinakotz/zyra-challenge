@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { NavLink } from 'react-router'
-import type { LinkNavegacao } from '../../types/navegacao'
+import { NavLink, useNavigate } from 'react-router'
+import { useSessao } from '../../hooks/useSessao'
+import type { AvisoNavegacao, LinkNavegacao } from '../../types/navegacao'
 
 const LINKS_NAVEGACAO: LinkNavegacao[] = [
   { caminho: '/', rotulo: 'Início' },
@@ -11,12 +12,27 @@ const LINKS_NAVEGACAO: LinkNavegacao[] = [
   { caminho: '/contato', rotulo: 'Contato' },
 ]
 
+// visual de cada item do menu (links e o botão "Sair"): no desktop, traço embaixo no hover
+const CLASSE_ITEM_MENU =
+  'relative block px-[1.5rem] py-[1.4rem] text-[1.6rem] text-nav transition-colors duration-200 desktop:inline-block desktop:w-auto desktop:px-0 desktop:pb-[0.7rem] desktop:after:absolute desktop:after:bottom-0 desktop:after:left-0 desktop:after:h-[2px] desktop:after:w-full desktop:after:origin-left desktop:after:scale-y-0 desktop:after:bg-hover desktop:after:opacity-0 desktop:after:transition-all desktop:after:duration-200 desktop:hover:after:scale-y-100 desktop:hover:after:opacity-100'
+
+// link do menu: na página atual fica em destaque (traço fixo no desktop)
+function classeLink({ isActive }: { isActive: boolean }) {
+  return `${CLASSE_ITEM_MENU} ${
+    isActive
+      ? 'font-bold text-hover desktop:font-normal desktop:text-nav desktop:after:scale-y-100 desktop:after:opacity-100'
+      : ''
+  }`
+}
+
 // obs.: os espaçamentos vêm do projeto original em rem fixo (ex.: px-[1.5rem]), porque o --spacing
 // do Zyra é diferente do padrão do Tailwind usado lá (px-6 lá = 1.5rem; aqui seria 2.4rem)
 
 // cabeçalho fixo no topo: links em linha no desktop; menu hambúrguer no celular e no tablet
 function Cabecalho() {
   const [menuAberto, setMenuAberto] = useState(false)
+  const { sessao, ehAdmin, sair } = useSessao()
+  const navigate = useNavigate()
 
   // com o menu aberto, Esc fecha
   useEffect(() => {
@@ -32,6 +48,16 @@ function Cabecalho() {
 
   function alternarMenu() {
     setMenuAberto((atual) => !atual)
+  }
+
+  // vai para a lista de missões com o aviso e encerra a sessão.
+  // navega antes de limpar a sessão: assim, se estiver numa página de admin,
+  // o RotaAdmin não chega a mandar para o /login
+  function encerrarSessao() {
+    setMenuAberto(false)
+    const aviso: AvisoNavegacao = { mensagem: 'Você saiu da área de administração.', tipo: 'sucesso' }
+    navigate('/missoes', { state: aviso })
+    sair()
   }
 
   return (
@@ -89,18 +115,34 @@ function Cabecalho() {
                 to={link.caminho}
                 end={link.caminho === '/'}
                 onClick={() => setMenuAberto(false)}
-                className={({ isActive }) =>
-                  `relative block px-[1.5rem] py-[1.4rem] text-[1.6rem] text-nav transition-colors duration-200 desktop:inline-block desktop:w-auto desktop:px-0 desktop:pb-[0.7rem] desktop:after:absolute desktop:after:bottom-0 desktop:after:left-0 desktop:after:h-[2px] desktop:after:w-full desktop:after:origin-left desktop:after:scale-y-0 desktop:after:bg-hover desktop:after:opacity-0 desktop:after:transition-all desktop:after:duration-200 desktop:hover:after:scale-y-100 desktop:hover:after:opacity-100 ${
-                    isActive
-                      ? 'font-bold text-hover desktop:font-normal desktop:text-nav desktop:after:scale-y-100 desktop:after:opacity-100'
-                      : ''
-                  }`
-                }
+                className={classeLink}
               >
                 {link.rotulo}
               </NavLink>
             </li>
           ))}
+
+          {/* só para o admin: o visitante nem vê o link (quem bloqueia de verdade é o backend) */}
+          {ehAdmin && (
+            <li className="w-full border-b border-separator-light desktop:w-auto desktop:border-none">
+              <NavLink
+                to="/admin/contatos"
+                onClick={() => setMenuAberto(false)}
+                className={classeLink}
+              >
+                Mensagens
+              </NavLink>
+            </li>
+          )}
+
+          {/* só com sessão ativa; sem sessão não há link de "Entrar" (a equipe acessa digitando /login) */}
+          {sessao && (
+            <li className="w-full desktop:w-auto">
+              <button type="button" onClick={encerrarSessao} className={`${CLASSE_ITEM_MENU} w-full text-left`}>
+                Sair
+              </button>
+            </li>
+          )}
         </ul>
       </nav>
     </header>

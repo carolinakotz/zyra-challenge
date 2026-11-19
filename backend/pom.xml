@@ -31,6 +31,19 @@
 			<artifactId>spring-boot-starter-validation</artifactId>
 		</dependency>
 
+		<!-- Spring Security: regras de acesso por perfil e codificador BCrypt das senhas -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+
+		<!-- leitura e geração dos tokens JWT (HS256) pelo próprio backend, sem biblioteca de terceiros;
+		     no Spring Boot 4 o antigo spring-boot-starter-oauth2-resource-server foi renomeado para este -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security-oauth2-resource-server</artifactId>
+		</dependency>
+
 		<!-- DataSource com pool de conexões (HikariCP) para o JDBC puro, sem JPA -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

@@ -3,13 +3,18 @@ package br.com.zyra.bo;
 import br.com.zyra.dao.ContatoDAO;
 import br.com.zyra.dto.ContatoEntradaDTO;
 import br.com.zyra.dto.ContatoSaidaDTO;
+import br.com.zyra.exception.RecursoNaoEncontradoException;
 import br.com.zyra.exception.RegraNegocioException;
 import br.com.zyra.model.Contato;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.regex.Pattern;
 
+import static br.com.zyra.bo.MissaoBO.PAGINA_PADRAO;
+import static br.com.zyra.bo.MissaoBO.TAMANHO_MAXIMO;
+import static br.com.zyra.bo.MissaoBO.TAMANHO_PADRAO;
 import static br.com.zyra.dto.ContatoEntradaDTO.EMAIL_MAXIMO;
 import static br.com.zyra.dto.ContatoEntradaDTO.MENSAGEM_MAXIMO;
 import static br.com.zyra.dto.ContatoEntradaDTO.MENSAGEM_MINIMO;
@@ -38,6 +43,8 @@ public class ContatoBO {
     // que foi barrado pelo campo isca
     private static final String MENSAGEM_ENVIO_RECUSADO = "Não foi possível enviar sua mensagem. Tente novamente.";
 
+    private static final String MENSAGEM_NAO_ENCONTRADO = "Contato não encontrado.";
+
     // confere o campo isca, valida, tira os espaços das pontas e grava a mensagem
     public ContatoSaidaDTO cadastrar(ContatoEntradaDTO dto) {
         recusarSeForRobo(dto);
@@ -49,6 +56,38 @@ public class ContatoBO {
         contatoDAO.inserir(contato);
 
         return converterParaDTO(contato);
+    }
+
+    // lista uma página de mensagens (da mais recente para a mais antiga)
+    // mesma paginação do GET /missoes (decisão D9): sem parâmetros, página 0 com 50 itens;
+    // tamanho acima do máximo é reduzido, para nenhuma chamada puxar a tabela inteira
+    public List<ContatoSaidaDTO> listar(Integer pagina, Integer tamanho) {
+        int paginaFinal = pagina == null ? PAGINA_PADRAO : pagina;
+        int tamanhoFinal = tamanho == null ? TAMANHO_PADRAO : tamanho;
+
+        if (paginaFinal < 0) {
+            throw new RegraNegocioException("A página deve ser maior ou igual a zero.");
+        }
+        if (tamanhoFinal < 1) {
+            throw new RegraNegocioException("O tamanho da página deve ser maior que zero.");
+        }
+        tamanhoFinal = Math.min(tamanhoFinal, TAMANHO_MAXIMO);
+
+        return contatoDAO.listar(paginaFinal, tamanhoFinal).stream()
+                .map(this::converterParaDTO)
+                .toList();
+    }
+
+    public ContatoSaidaDTO buscarPorId(Long id) {
+        Contato contato = contatoDAO.buscarPorId(id)
+                .orElseThrow(() -> new RecursoNaoEncontradoException(MENSAGEM_NAO_ENCONTRADO));
+        return converterParaDTO(contato);
+    }
+
+    public void excluir(Long id) {
+        if (!contatoDAO.excluir(id)) {
+            throw new RecursoNaoEncontradoException(MENSAGEM_NAO_ENCONTRADO);
+        }
     }
 
     // o campo "site" fica escondido de pessoas no formulário; se chegou preenchido,

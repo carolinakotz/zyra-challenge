@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router'
 import { useFetch } from '../hooks/useFetch'
+import { useSessao } from '../hooks/useSessao'
 import { ErroApi } from '../services/api'
 import { buscarMissao, excluirMissao } from '../services/missaoService'
 import BotaoPrimario from '../components/BotaoPrimario'
@@ -9,10 +10,12 @@ import MensagemRetorno from '../components/MensagemRetorno'
 import { converterId } from '../utils/converterId'
 import { avisoMissaoNaoEncontrada } from '../utils/avisoMissaoNaoEncontrada'
 import type { MissaoSaidaDTO } from '../types/missao'
-import type { AvisoNavegacao } from '../types/navegacao'
+import type { AvisoNavegacao, DestinoLogin } from '../types/navegacao'
 
 function ConteudoMissao({ missao }: { missao: MissaoSaidaDTO }) {
   const navigate = useNavigate()
+  // Editar e Excluir só aparecem para o admin (o backend bloqueia os outros de qualquer jeito)
+  const { ehAdmin } = useSessao()
   // estado próprio da exclusão: separado do erro do useFetch, que é o erro da busca
   const [excluindo, setExcluindo] = useState(false)
   const [erroExclusao, setErroExclusao] = useState<string | null>(null)
@@ -29,6 +32,12 @@ function ConteudoMissao({ missao }: { missao: MissaoSaidaDTO }) {
       // DELETE responde 204 sem corpo; o api.ts devolve undefined nesse caso
       await excluirMissao(missao.id)
     } catch (e) {
+      // 401: a sessão venceu (o api.ts já limpou); vai para o login e volta para esta missão depois
+      if (e instanceof ErroApi && e.status === 401) {
+        const destino: DestinoLogin = { de: `/missoes/${missao.id}` }
+        navigate('/login', { state: destino })
+        return
+      }
       setErroExclusao(e instanceof ErroApi ? e.message : 'Não foi possível excluir a missão.')
       // só reabilita se falhar; se der certo, a página navega embora
       setExcluindo(false)
@@ -79,15 +88,19 @@ function ConteudoMissao({ missao }: { missao: MissaoSaidaDTO }) {
 
       <div className="flex flex-col items-center gap-[1.6rem] mobile-lg:flex-row">
         <BotaoPrimario to="/missoes">Ver todas as missões</BotaoPrimario>
-        <BotaoPrimario to={`/missoes/${missao.id}/editar`}>Editar</BotaoPrimario>
-        <button
-          type="button"
-          onClick={excluir}
-          disabled={excluindo}
-          className="rounded-lg border-[1.5px] border-erro px-[3.6rem] py-[1.3rem] text-[1.6rem] font-semibold text-erro transition-[background-color,color] duration-300 hover:bg-erro hover:text-white disabled:cursor-not-allowed disabled:opacity-70"
-        >
-          {excluindo ? 'Excluindo...' : 'Excluir'}
-        </button>
+        {ehAdmin && (
+          <>
+            <BotaoPrimario to={`/missoes/${missao.id}/editar`}>Editar</BotaoPrimario>
+            <button
+              type="button"
+              onClick={excluir}
+              disabled={excluindo}
+              className="rounded-lg border-[1.5px] border-erro px-[3.6rem] py-[1.3rem] text-[1.6rem] font-semibold text-erro transition-[background-color,color] duration-300 hover:bg-erro hover:text-white disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {excluindo ? 'Excluindo...' : 'Excluir'}
+            </button>
+          </>
+        )}
       </div>
     </section>
   )
