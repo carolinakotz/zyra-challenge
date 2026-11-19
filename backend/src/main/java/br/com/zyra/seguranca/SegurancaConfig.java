@@ -81,7 +81,7 @@ public class SegurancaConfig {
                         .requestMatchers(HttpMethod.POST, "/missoes").hasRole(ADMIN)
                         .requestMatchers(HttpMethod.PUT, "/missoes/{id}").hasRole(ADMIN)
                         .requestMatchers(HttpMethod.DELETE, "/missoes/{id}").hasRole(ADMIN)
-                        // leitura e exclusão de contatos (os endpoints chegam na Etapa 7)
+                        // leitura e exclusão de contatos (GET /contatos, GET e DELETE /contatos/{id})
                         .requestMatchers("/contatos", "/contatos/**").hasRole(ADMIN)
 
                         // regra padrão: tudo que não foi liberado acima exige admin.
