@@ -8,7 +8,9 @@ import br.com.zyra.exception.RegraNegocioException;
 import br.com.zyra.model.Contato;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -52,7 +54,8 @@ public class ContatoBO {
 
         Contato contato = converterParaModel(dto);
         contato.setIdContato(contatoDAO.proximoId());
-        contato.setDataEnvio(LocalDateTime.now());
+        // grava sempre em UTC, independente do fuso do servidor (o Render roda em UTC)
+        contato.setDataEnvio(LocalDateTime.now(ZoneOffset.UTC));
         contatoDAO.inserir(contato);
 
         return converterParaDTO(contato);
@@ -159,8 +162,10 @@ public class ContatoBO {
     }
 
     // model -> DTO de saída (o que vai no JSON)
+    // a data gravada está em UTC; vira Instant para o JSON levar o fuso ("...Z")
     private ContatoSaidaDTO converterParaDTO(Contato contato) {
+        Instant dataEnvio = contato.getDataEnvio() == null ? null : contato.getDataEnvio().toInstant(ZoneOffset.UTC);
         return new ContatoSaidaDTO(contato.getIdContato(), contato.getNome(), contato.getSobrenome(),
-                contato.getEmail(), contato.getTelefone(), contato.getMensagem(), contato.getDataEnvio());
+                contato.getEmail(), contato.getTelefone(), contato.getMensagem(), dataEnvio);
     }
 }
