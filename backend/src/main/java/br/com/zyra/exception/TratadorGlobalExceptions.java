@@ -45,6 +45,12 @@ public class TratadorGlobalExceptions {
         return responder(HttpStatus.NOT_FOUND, e.getMessage());
     }
 
+    // requisição válida, mas em conflito com o estado atual (ex.: já realizada): 409 com a mensagem do BO
+    @ExceptionHandler(ConflitoException.class)
+    public ResponseEntity<ErroSaidaDTO> tratarConflito(ConflitoException e) {
+        return responder(HttpStatus.CONFLICT, e.getMessage());
+    }
+
     // login com e-mail ou senha errados: 401, sempre com a mesma mensagem
     @ExceptionHandler(CredenciaisInvalidasException.class)
     public ResponseEntity<ErroSaidaDTO> tratarCredenciaisInvalidas(CredenciaisInvalidasException e) {

@@ -10,6 +10,7 @@ import br.com.zyra.exception.RegraNegocioException;
 import br.com.zyra.model.Conquista;
 import br.com.zyra.model.Missao;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -43,11 +44,17 @@ public class MissaoBO {
     }
 
     // cadastra a missão com a conquista padrão de 20 pontos
+    // @Transactional aqui também: a chamada para o outro cadastrar acontece dentro da própria
+    // classe, e o Spring só abre transação quando o método é chamado de fora (pelo resource)
+    @Transactional
     public MissaoSaidaDTO cadastrar(MissaoEntradaDTO dto) {
         return cadastrar(dto, PONTOS_PADRAO);
     }
 
     // cadastra a missão e já cria a conquista vinculada a ela
+    // @Transactional: missão e conquista são gravadas juntas; se a conquista falhar,
+    // a missão também é desfeita (rollback) e o banco não fica com missão sem conquista
+    @Transactional
     public MissaoSaidaDTO cadastrar(MissaoEntradaDTO dto, Integer pontosRecompensa) {
         validar(dto);
         if (pontosRecompensa == null || pontosRecompensa < PONTOS_MINIMO || pontosRecompensa > PONTOS_MAXIMO) {
@@ -60,16 +67,9 @@ public class MissaoBO {
         missaoDAO.inserir(missao);
 
         // a missão precisa existir antes da conquista, por causa da FK
-        try {
-            Conquista conquista = new Conquista(conquistaDAO.proximoId(), pontosRecompensa, missao.getId());
-            conquistaDAO.inserir(conquista);
-            missao.setConquista(conquista);
-        } catch (RuntimeException e) {
-            // cada DAO grava sozinho (sem transação), então se a conquista falhar
-            // apagamos a missão para não deixar uma missão sem conquista no banco
-            missaoDAO.excluir(missao.getId());
-            throw e;
-        }
+        Conquista conquista = new Conquista(conquistaDAO.proximoId(), pontosRecompensa, missao.getId());
+        conquistaDAO.inserir(conquista);
+        missao.setConquista(conquista);
 
         return converterParaDTO(missao);
     }
@@ -87,6 +87,9 @@ public class MissaoBO {
         return converterParaDTO(missao);
     }
 
+    // @Transactional: conquistas e missão são apagadas juntas; se algo falhar no meio,
+    // nada é apagado (rollback)
+    @Transactional
     public void excluir(Long id) {
         buscarMissao(id);
 

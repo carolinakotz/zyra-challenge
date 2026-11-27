@@ -3,7 +3,10 @@ package br.com.zyra.dao;
 import br.com.zyra.exception.AcessoDadosException;
 import br.com.zyra.model.Perfil;
 import br.com.zyra.model.Usuario;
+import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -21,7 +24,10 @@ public class UsuarioDAO {
     private final DataSource dataSource;
 
     public UsuarioDAO(DataSource dataSource) {
-        this.dataSource = dataSource;
+        // envolve o DataSource do Spring (não substitui o bean): dentro de um método @Transactional,
+        // todas as chamadas recebem a mesma conexão e o close() só a devolve no fim da transação.
+        // fora de uma transação, funciona como antes (uma conexão por chamada, com autocommit)
+        this.dataSource = new TransactionAwareDataSourceProxy(dataSource);
     }
 
     // pega o próximo id da sequence; quem chama faz isso antes de inserir
@@ -83,6 +89,26 @@ public class UsuarioDAO {
             }
         } catch (SQLException e) {
             throw new AcessoDadosException("Erro ao verificar se existe admin.", e);
+        }
+    }
+
+    // trava a linha do usuário até o fim da transação (commit ou rollback).
+    // toda operação que mexe em pontos ou realizações de um usuário começa por aqui:
+    // duas requisições simultâneas do mesmo usuário passam a acontecer uma depois da outra.
+    // MANDATORY: só pode ser chamado dentro de um método @Transactional; fora dele, a trava
+    // seria solta logo em seguida (autocommit), então o Spring lança erro em vez de falhar em silêncio.
+    // devolve false quando o usuário não existe (quem decide o que fazer é o BO)
+    @Transactional(propagation = Propagation.MANDATORY)
+    public boolean travarPorId(Long idUsuario) {
+        String sql = "SELECT ID_USUARIO FROM ZYRA2_USUARIO WHERE ID_USUARIO = ? FOR UPDATE";
+        try (Connection conexao = dataSource.getConnection();
+             PreparedStatement comando = conexao.prepareStatement(sql)) {
+            comando.setLong(1, idUsuario);
+            try (ResultSet resultado = comando.executeQuery()) {
+                return resultado.next();
+            }
+        } catch (SQLException e) {
+            throw new AcessoDadosException("Erro ao travar o usuário.", e);
         }
     }
 

@@ -31,15 +31,44 @@ Cada camada só conversa com a camada imediatamente abaixo. O `resource` nunca c
 | `dao`       | Único lugar com SQL. Converte `ResultSet` em `model`.                                                     | `MissaoDAO`, `UsuarioDAO`                     |
 | `bo`        | Regras de negócio: validações, cálculo de pontos, conversão de pontos em saldo, recarga. Converte DTO ↔ model. | `MissaoBO`, `RecargaBO`                  |
 | `resource`  | Controllers REST (`@RestController`). Finos: recebem DTO, chamam o BO, devolvem DTO e o status HTTP.      | `MissaoResource`, `UsuarioResource`           |
-| `exception` | Exceções próprias e o `@RestControllerAdvice` que as traduz em respostas HTTP.                            | `RegraNegocioException`, `RecursoNaoEncontradoException`, `AcessoDadosException` (falha no banco, vira HTTP 500), `TratadorGlobalExceptions` |
+| `exception` | Exceções próprias e o `@RestControllerAdvice` que as traduz em respostas HTTP.                            | `RegraNegocioException`, `RecursoNaoEncontradoException`, `ConflitoException` (vira HTTP 409), `AcessoDadosException` (falha no banco, vira HTTP 500), `TratadorGlobalExceptions` |
 | `filter`    | Filtros que rodam antes dos resources em toda requisição (ex.: CORS para o frontend).                     | `CorsFilter`                                  |
+| `seguranca` | Regras de acesso, JWT e o utilitário do usuário logado.                                                    | `SegurancaConfig`, `UsuarioAtual`             |
 
 ### Regras do DAO
 
-- Receber o `DataSource` do Spring por injeção e pegar a conexão com `dataSource.getConnection()`.
+- Receber o `DataSource` do Spring por injeção e guardá-lo envolvido em `TransactionAwareDataSourceProxy`
+  (`this.dataSource = new TransactionAwareDataSourceProxy(dataSource)`). Pegar a conexão com
+  `dataSource.getConnection()`. O proxy faz o DAO participar das transações do Spring (ver "Transações").
+- **Nunca** declarar um novo `@Bean` do tipo `DataSource`: isso desliga a configuração automática do
+  Spring Boot. O proxy é criado dentro do DAO, sem substituir o bean.
 - Sempre `PreparedStatement` com parâmetros `?`. **Nunca** concatenar valores em SQL (evita SQL injection).
 - Sempre `try-with-resources` para `Connection`, `PreparedStatement` e `ResultSet`.
 - Capturar `SQLException` e relançar como exceção da camada `exception`.
+
+### Transações
+
+- Fora de uma transação, cada chamada de DAO usa a própria conexão, com autocommit.
+- **Todo método de BO que grava em mais de uma tabela** recebe `@Transactional`
+  (`org.springframework.transaction.annotation`): ou tudo é gravado, ou nada. Qualquer
+  `RuntimeException` (todas as exceções do pacote `exception` são) desfaz a transação inteira.
+- Dentro de um método `@Transactional`, todos os DAOs recebem a mesma conexão, e o `close()` do
+  `try-with-resources` só a devolve no fim da transação.
+- O Spring só abre a transação quando o método é chamado **de fora da classe** (pelo resource ou por
+  outro BO). Chamada de um método para outro da mesma classe ignora o `@Transactional` do segundo:
+  anote o método que é chamado de fora.
+- **Toda operação que mexe em pontos ou realizações de um usuário** começa travando a linha dele com
+  `UsuarioDAO.travarPorId(id)` (`SELECT ... FOR UPDATE`). Duas requisições simultâneas do mesmo
+  usuário passam a acontecer uma depois da outra. A trava dura até o fim da transação, e o método só
+  pode ser chamado dentro de um `@Transactional` (senão o Spring lança erro).
+- As conferências (frequência, limite diário, saldo) vêm **depois** da trava.
+
+### Usuário logado
+
+- O id e o perfil de quem está logado vêm do token, pelo `seguranca/UsuarioAtual`
+  (`idUsuario()` e `perfil()`). **Nenhuma rota de usuário recebe o id do próprio usuário** na URL
+  ou no corpo.
+- Sem token válido, o `UsuarioAtual` lança uma exceção que vira 401.
 
 ## Convenções de nomes
 
@@ -68,6 +97,7 @@ Identificadores em português sem acento (ver seção "Idiomas" no `CLAUDE.md` d
 | DELETE com sucesso                               | 204    | Sem corpo.                                                    |
 | Regra de negócio violada                         | 400    | `RegraNegocioException`, com mensagem em português com acento. |
 | Id inexistente                                   | 404    | `RecursoNaoEncontradoException`, com mensagem em português com acento. |
+| Requisição válida, mas em conflito com o estado atual (ex.: já realizada, saldo insuficiente) | 409 | `ConflitoException`, com mensagem em português com acento. |
 
 Quem traduz exceção em status é o `@RestControllerAdvice` do pacote `exception`, não o resource.
 
