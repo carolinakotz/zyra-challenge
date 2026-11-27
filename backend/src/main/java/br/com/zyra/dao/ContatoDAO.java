@@ -2,6 +2,7 @@ package br.com.zyra.dao;
 
 import br.com.zyra.exception.AcessoDadosException;
 import br.com.zyra.model.Contato;
+import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy;
 import org.springframework.stereotype.Repository;
 
 import javax.sql.DataSource;
@@ -23,7 +24,10 @@ public class ContatoDAO {
     private final DataSource dataSource;
 
     public ContatoDAO(DataSource dataSource) {
-        this.dataSource = dataSource;
+        // envolve o DataSource do Spring (não substitui o bean): dentro de um método @Transactional,
+        // todas as chamadas recebem a mesma conexão e o close() só a devolve no fim da transação.
+        // fora de uma transação, funciona como antes (uma conexão por chamada, com autocommit)
+        this.dataSource = new TransactionAwareDataSourceProxy(dataSource);
     }
 
     // pega o próximo id da sequence; o BO chama antes de inserir
